@@ -1,0 +1,76 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+// Replace with your actual credentials
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+const char* server = "YOUR_SERVER_ADDRESS"; 
+
+// Define pin numbers
+const int pirPin = 2; // Connect PIR sensor output to this pin
+const int buzzerPin = 4; // Connect buzzer to this pin
+
+// Define variables
+bool previousState = LOW; 
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(pirPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  bool currentState = digitalRead(pirPin);
+
+  if (currentState == HIGH && previousState == LOW) {
+    Serial.println("Motion detected!");
+    digitalWrite(buzzerPin, HIGH); // Trigger the buzzer
+    sendAlert("Motion detected!"); // Send alert to server
+  } else if (currentState == LOW && previousState == HIGH) {
+    Serial.println("Motion stopped.");
+    digitalWrite(buzzerPin, LOW); // Stop the buzzer
+  }
+
+  previousState = currentState;
+  delay(100); // Adjust delay as needed
+}
+
+void sendAlert(const char* message) {
+  HTTPClient http;
+
+  // Create HTTP POST request
+  http.begin(server); 
+  http.addHeader("Content-Type", "application/json");
+
+  // Prepare JSON data
+  StaticJsonDocument doc;
+  doc["message"] = message;
+
+  // Serialize JSON to string
+  String jsonString;
+  serializeJson(doc, jsonString);
+
+  // Send HTTP POST request
+  int httpResponseCode = http.POST(jsonString);
+
+  if (httpResponseCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+  } else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+
+  http.end();
+}
